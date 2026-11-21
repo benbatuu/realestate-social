@@ -1,0 +1,11 @@
+// Domain models arrive from M1 onward (blueprint §10). M0 only wires the toolchain.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
