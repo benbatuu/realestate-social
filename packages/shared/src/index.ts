@@ -1,4 +1,7 @@
+export * from './auth';
+export * from './errors';
 export * from './health';
+export * from './tenants';
 
 /** Every public API route lives under this prefix (blueprint §11). */
 export const API_PREFIX = 'api/v1';

@@ -32,3 +32,15 @@ export const REDACT_PATHS: string[] = [
 ];
 
 export const REDACT_CENSOR = '[REDACTED]';
+
+/**
+ * What a request log line contains: correlation ID, method and path. No headers (cookies), no
+ * body (passwords, invitation tokens) and no query string (signed-URL tokens).
+ */
+export function serializeRequest(req: { id: unknown; method: string; url: string }): {
+  id: unknown;
+  method: string;
+  path: string;
+} {
+  return { id: req.id, method: req.method, path: req.url.split('?')[0] ?? '' };
+}

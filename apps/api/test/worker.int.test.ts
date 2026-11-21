@@ -5,7 +5,7 @@ import { type Queue, QueueEvents } from 'bullmq';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { parseEnv } from '../src/config/env';
 import { redisConnectionOptions } from '../src/infra/redis';
-import { QUEUES, SYSTEM_JOBS } from '../src/queues/queues';
+import { QUEUES, queuePrefix, SYSTEM_JOBS } from '../src/queues/queues';
 import { WorkerModule } from '../src/worker/worker.module';
 
 // Requires `pnpm services:up`. Boots the real worker module and pushes a job through Redis.
@@ -16,8 +16,10 @@ describe('worker process', () => {
   beforeAll(async () => {
     worker = await NestFactory.createApplicationContext(WorkerModule, { logger: false });
     await worker.init();
+    const env = parseEnv(process.env);
     events = new QueueEvents(QUEUES.system, {
-      connection: redisConnectionOptions(parseEnv(process.env).REDIS_URL),
+      connection: redisConnectionOptions(env.REDIS_URL),
+      prefix: queuePrefix(env.NODE_ENV),
     });
     await events.waitUntilReady();
   });

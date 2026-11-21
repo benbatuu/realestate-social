@@ -1,9 +1,11 @@
 import type { HealthResponse } from '@app/shared';
 import { Controller, Get, HttpStatus, Res } from '@nestjs/common';
 import { ApiOkResponse, ApiServiceUnavailableResponse, ApiTags } from '@nestjs/swagger';
+import { Public } from '../auth/public.decorator';
 import type { Response } from 'express';
 import { HealthService } from './health.service';
 
+@Public()
 @ApiTags('health')
 @Controller('health')
 export class HealthController {

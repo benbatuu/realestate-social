@@ -1,7 +1,7 @@
 import { Writable } from 'node:stream';
 import pino from 'pino';
 import { describe, expect, it } from 'vitest';
-import { REDACT_CENSOR, REDACT_PATHS } from './redaction';
+import { REDACT_CENSOR, REDACT_PATHS, serializeRequest } from './redaction';
 
 function captureLogger() {
   const lines: string[] = [];
@@ -41,5 +41,19 @@ describe('log redaction', () => {
     }
     expect(out).toContain('prop_1');
     expect(out).toContain(REDACT_CENSOR);
+  });
+});
+
+describe('request serializer', () => {
+  it('keeps only id, method and path', () => {
+    const out = serializeRequest({
+      id: 'req-1',
+      method: 'POST',
+      url: '/api/v1/invitations/accept?signature=secret-sig',
+      headers: { cookie: 'sid=session-token' },
+      body: { token: 'invite-token' },
+    } as never);
+    expect(out).toEqual({ id: 'req-1', method: 'POST', path: '/api/v1/invitations/accept' });
+    expect(JSON.stringify(out)).not.toMatch(/secret-sig|session-token|invite-token/);
   });
 });

@@ -14,10 +14,16 @@ export const SYSTEM_JOBS = {
   noop: 'noop',
 } as const;
 
+export function queuePrefix(nodeEnv: string): string {
+  return `bull-${nodeEnv}`;
+}
+
 export const bullRootModule = BullModule.forRootAsync({
   inject: [APP_CONFIG],
   useFactory: (config: AppConfig) => ({
     connection: redisConnectionOptions(config.REDIS_URL),
+    // Per-environment prefix so test runs never share queues with a running dev worker.
+    prefix: queuePrefix(config.NODE_ENV),
     defaultJobOptions: {
       attempts: 3,
       backoff: { type: 'exponential', delay: 1_000, jitter: 0.5 },

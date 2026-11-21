@@ -19,7 +19,9 @@
     "test:unit": "pnpm build:shared && pnpm -r run test:unit",
     "db:generate": "pnpm --filter @app/api run db:generate",
     "db:migrate": "pnpm --filter @app/api run db:migrate",
-    "db:deploy": "pnpm --filter @app/api run db:deploy"
+    "db:deploy": "pnpm --filter @app/api run db:deploy",
+    "db:seed": "pnpm --filter @app/api run db:seed",
+    "test:e2e": "pnpm build:shared && pnpm --filter @app/web run test:e2e"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

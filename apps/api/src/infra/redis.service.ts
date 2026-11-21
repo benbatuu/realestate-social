@@ -15,8 +15,12 @@ export class RedisService implements OnModuleDestroy {
     });
   }
 
-  async ping(): Promise<void> {
+  async ensureConnected(): Promise<void> {
     if (this.client.status === 'wait') await this.client.connect();
+  }
+
+  async ping(): Promise<void> {
+    await this.ensureConnected();
     const reply = await this.client.ping();
     if (reply !== 'PONG') throw new Error('Unexpected PING reply');
   }

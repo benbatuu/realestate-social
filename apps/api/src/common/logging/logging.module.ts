@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { LoggerModule } from 'nestjs-pino';
 import { APP_CONFIG, type AppConfig } from '../../config/config.module';
 import { resolveCorrelationId } from './correlation-id';
-import { REDACT_CENSOR, REDACT_PATHS } from './redaction';
+import { REDACT_CENSOR, REDACT_PATHS, serializeRequest } from './redaction';
 
 @Module({
   imports: [
@@ -13,14 +13,7 @@ import { REDACT_CENSOR, REDACT_PATHS } from './redaction';
           level: config.LOG_LEVEL,
           genReqId: resolveCorrelationId,
           redact: { paths: REDACT_PATHS, censor: REDACT_CENSOR },
-          // Query strings can carry signed-URL tokens; log the path only.
-          serializers: {
-            req: (req: { id: unknown; method: string; url: string }) => ({
-              id: req.id,
-              method: req.method,
-              path: req.url.split('?')[0],
-            }),
-          },
+          serializers: { req: serializeRequest },
           ...(config.NODE_ENV === 'development'
             ? {
                 // Resolved from this package: pino would otherwise look it up from its own

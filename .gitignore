@@ -11,3 +11,7 @@ coverage/
 apps/api/src/generated/
 .turbo/
 next-env.d.ts
+.next-e2e/
+playwright-report/
+test-results/
+dist-e2e/

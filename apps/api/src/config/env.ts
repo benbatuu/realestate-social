@@ -27,6 +27,24 @@ export const envSchema = z.object({
   OBJECT_STORAGE_SECRET_KEY: nonEmpty,
   OBJECT_STORAGE_FORCE_PATH_STYLE: booleanString,
 
+  /**
+   * Express `trust proxy`: which hops may set X-Forwarded-For. `loopback` fits the local setup
+   * (Next.js rewrite on the same host). In production set it to the web tier's addresses or hop
+   * count, otherwise every user shares the proxy's IP for login throttling.
+   */
+  TRUST_PROXY: z
+    .string()
+    .trim()
+    .default('loopback')
+    .transform((v): string | number => (/^\d+$/.test(v) ? Number(v) : v)),
+  SESSION_TTL_DAYS: z.coerce.number().int().min(1).max(365).default(30),
+  INVITATION_TTL_DAYS: z.coerce.number().int().min(1).max(30).default(7),
+  SIGNUP_PLAN_CODE: z
+    .string()
+    .trim()
+    .optional()
+    .transform((v) => (v ? v : undefined)),
+
   AUTH_SECRET: secret,
   ENCRYPTION_KEY: secret,
 });

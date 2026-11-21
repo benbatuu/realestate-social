@@ -1,4 +1,4 @@
-// Domain models arrive from M1 onward (blueprint §10). M0 only wires the toolchain.
+// Blueprint §10. Money is stored in integer minor units; timestamps are UTC.
 
 generator client {
   provider     = "prisma-client"
@@ -8,4 +8,200 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Identity
+// ---------------------------------------------------------------------------
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+}
+
+model User {
+  id           String     @id @default(uuid(7)) @db.Uuid
+  /// Always stored lower-cased and trimmed (normalised in the application layer).
+  email        String     @unique
+  name         String
+  passwordHash String
+  status       UserStatus @default(ACTIVE)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  sessions            Session[]
+  memberships         Membership[]
+  invitationsSent     Invitation[] @relation("InvitationInvitedBy")
+  invitationsAccepted Invitation[] @relation("InvitationAcceptedBy")
+
+  @@map("users")
+}
+
+model Session {
+  id         String   @id @default(uuid(7)) @db.Uuid
+  userId     String   @db.Uuid
+  /// SHA-256 of the cookie token. The raw token is never stored.
+  tokenHash  String   @unique
+  expiresAt  DateTime
+  lastUsedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+// ---------------------------------------------------------------------------
+// Tenancy
+// ---------------------------------------------------------------------------
+
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+model Tenant {
+  id        String       @id @default(uuid(7)) @db.Uuid
+  name      String
+  slug      String       @unique
+  status    TenantStatus @default(ACTIVE)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  memberships   Membership[]
+  invitations   Invitation[]
+  subscriptions Subscription[]
+  auditLogs     AuditLog[]
+
+  @@map("tenants")
+}
+
+/// Ordered from most to least privileged; see src/tenants/roles.ts.
+enum MembershipRole {
+  OWNER
+  ADMIN
+  MANAGER
+  MEMBER
+  VIEWER
+}
+
+model Membership {
+  id        String         @id @default(uuid(7)) @db.Uuid
+  tenantId  String         @db.Uuid
+  userId    String         @db.Uuid
+  role      MembershipRole
+  createdAt DateTime       @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, userId])
+  @@index([userId])
+  @@map("memberships")
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+}
+
+model Invitation {
+  id               String           @id @default(uuid(7)) @db.Uuid
+  tenantId         String           @db.Uuid
+  email            String
+  role             MembershipRole
+  /// SHA-256 of the invitation token. The raw token only exists in the invite link.
+  tokenHash        String           @unique
+  status           InvitationStatus @default(PENDING)
+  expiresAt        DateTime
+  invitedByUserId  String           @db.Uuid
+  acceptedByUserId String?          @db.Uuid
+  acceptedAt       DateTime?
+  createdAt        DateTime         @default(now())
+
+  tenant     Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  invitedBy  User   @relation("InvitationInvitedBy", fields: [invitedByUserId], references: [id])
+  acceptedBy User?  @relation("InvitationAcceptedBy", fields: [acceptedByUserId], references: [id])
+
+  @@index([tenantId, status])
+  @@map("invitations")
+}
+
+// ---------------------------------------------------------------------------
+// Plans and subscriptions (§4.4, §10.1). Limits live here, never in the frontend.
+// ---------------------------------------------------------------------------
+
+model Plan {
+  id                        String   @id @default(uuid(7)) @db.Uuid
+  code                      String   @unique
+  name                      String
+  monthlyPriceMinor         Int
+  currency                  String
+  monthlyCredits            Int
+  freeRegenerationAllowance Int
+  maxSeats                  Int
+  maxWorkspaces             Int
+  maxCrmConnections         Int
+  retentionDays             Int
+  featuresJson              Json
+  isActive                  Boolean  @default(true)
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  subscriptions Subscription[]
+
+  @@map("plans")
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  INCOMPLETE
+}
+
+model Subscription {
+  id                     String             @id @default(uuid(7)) @db.Uuid
+  tenantId               String             @db.Uuid
+  planId                 String             @db.Uuid
+  /// Null until a payment provider is integrated.
+  providerSubscriptionId String?
+  status                 SubscriptionStatus
+  currentPeriodStart     DateTime
+  currentPeriodEnd       DateTime
+  cancelAtPeriodEnd      Boolean            @default(false)
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  plan   Plan   @relation(fields: [planId], references: [id])
+
+  @@index([tenantId, status])
+  @@map("subscriptions")
+}
+
+// ---------------------------------------------------------------------------
+// Audit (§4.5, §13.1). IDs only: no tokens, passwords or email addresses.
+// ---------------------------------------------------------------------------
+
+model AuditLog {
+  id           String   @id @default(uuid(7)) @db.Uuid
+  tenantId     String?  @db.Uuid
+  actorUserId  String?  @db.Uuid
+  action       String
+  targetType   String?
+  targetId     String?
+  metadataJson Json?
+  requestId    String?
+  createdAt    DateTime @default(now())
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@map("audit_logs")
 }

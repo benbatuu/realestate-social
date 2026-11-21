@@ -4,8 +4,9 @@ Working name only; the brand is undecided. Product, business rules and architect
 [`product-architecture-blueprint.md`](product-architecture-blueprint.md). Milestone plans live in
 [`docs/`](docs/) and decisions in [`docs/adr/`](docs/adr/).
 
-**Current state: Milestone 0 — skeleton.** No business features yet: the API exposes a health
-check, the worker processes a no-op job, and the web app shows system status.
+**Current state: Milestone 1 — multi-tenant foundation.** Sign-up and login, workspaces,
+roles, invitations, plan catalogue and entitlements, and an audit log. No portfolio or video
+features yet. See [`docs/plan-01-m1-multi-tenant-foundation.md`](docs/plan-01-m1-multi-tenant-foundation.md).
 
 ## Stack
 
@@ -50,10 +51,15 @@ pnpm db:migrate
 ```
 
 ```bash
+pnpm db:seed
+```
+
+```bash
 pnpm dev
 ```
 
-- Web: http://localhost:3100
+- Web: http://localhost:3100 (sign up, create a workspace, invite people from **Ekip**)
+- Status page: http://localhost:3100/status
 - API health: http://localhost:4100/api/v1/health
 - API docs (OpenAPI): http://localhost:4100/api/v1/docs
 
@@ -86,7 +92,13 @@ Ports differ from the blueprint's 3000/4000 because those were in use on the dev
 - **Logging:** structured pino logs. Every request gets an `x-request-id` (caller-supplied if safe,
   otherwise generated) echoed in the response. Secrets and personal data keys are redacted
   (`apps/api/src/common/logging/redaction.ts`), and query strings are not logged.
-- **API:** all routes under `/api/v1`. Validation with Zod only (ADR 0003).
+- **API:** all routes under `/api/v1`. Validation with Zod only (ADR 0003). Errors are
+  `{ statusCode, code, message, issues? }` with codes from `packages/shared/src/errors.ts`.
+- **Auth and tenancy:** cookie sessions, same-origin via the Next.js rewrite, default-deny guard,
+  `@TenantScoped()` for workspace routes (ADR 0007). Every new tenant-scoped route must be added
+  to `apps/api/test/isolation.int.test.ts`.
+- **Tests:** integration and E2E tests use a separate `app_test` database (created and migrated
+  automatically) and environment-prefixed queues, so they never touch dev data.
 - **Providers:** every external AI/CRM/payment service goes behind an adapter, with a mock
   implementation that is always labelled as mock (ADR 0005). None exist yet.
 - **Database:** Prisma migrations in `apps/api/prisma/migrations`. Rollback approach: write a
@@ -94,18 +106,24 @@ Ports differ from the blueprint's 3000/4000 because those were in use on the dev
 
 ## Mock vs. real integrations
 
-| Integration                     | Status              |
-| ------------------------------- | ------------------- |
-| Postgres, Redis, object storage | Real (local Docker) |
-| AI video, LLM, TTS, music       | Not started         |
-| CRM (LeadPilot), CSV import     | Not started         |
-| Payments                        | Not started         |
+| Integration                     | Status                                                                               |
+| ------------------------------- | ------------------------------------------------------------------------------------ |
+| Postgres, Redis, object storage | Real (local Docker)                                                                  |
+| Invitation email delivery       | **Mock**: the inviter copies the link shown after creating an invitation             |
+| Subscriptions                   | **Config-driven**: `SIGNUP_PLAN_CODE` starts a TRIALING subscription; no billing yet |
+| AI video, LLM, TTS, music       | Not started                                                                          |
+| CRM (LeadPilot), CSV import     | Not started                                                                          |
+| Payments                        | Not started                                                                          |
 
-## Known gaps after M0
+## Known gaps
 
-- No domain models or migrations yet (`schema.prisma` only has the generator and datasource), so
-  `pnpm db:migrate` currently reports nothing to apply.
-- shadcn/ui is not initialised yet; it will be added with the first real screens in M1.
-- No CI pipeline yet (no remote repository). The commands above are what CI should run.
-- The web app has no tests yet; UI and E2E (Playwright) tests start in M1.
+- Plan prices in the seed are the blueprint's **hypotheses** (§4.4), not validated prices.
+- `SIGNUP_PLAN_CODE` stands in for billing: the blueprint defines no free trial, so production
+  should leave it empty until a payment provider exists.
+- Not built yet: email verification (anyone can register any address; invitations still require
+  the invited address), role changes, member removal, invitation revoke from the UI, password
+  reset, email delivery, multiple workspaces per subscription (`maxWorkspaces`), dark mode.
+- No CI pipeline yet. The commands above are what CI should run.
 - Local storage uses SeaweedFS instead of MinIO (ADR 0006); the production storage vendor is open.
+- Migration rollback: write a forward migration that reverses the change. For
+  `m1_identity_tenancy` that means dropping the M1 tables and enums; there is no data to keep yet.

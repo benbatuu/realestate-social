@@ -16,6 +16,7 @@ export default defineConfig({
           name: 'integration',
           include: ['test/**/*.int.test.ts'],
           setupFiles: ['test/setup-env.ts'],
+          globalSetup: ['test/global-setup.ts'],
           testTimeout: 20_000,
           hookTimeout: 30_000,
           // Integration tests share real Postgres/Redis/storage.
