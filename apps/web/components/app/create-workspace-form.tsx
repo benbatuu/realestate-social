@@ -16,15 +16,16 @@ import { Input } from '@/components/ui/input';
 import { apiPost } from '@/lib/api/client';
 import { errorMessage } from '@/lib/errors';
 
+const selectClass =
+  'h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50';
+
 export function CreateWorkspaceForm() {
   const router = useRouter();
   const [formError, setFormError] = useState<string | null>(null);
   const form = useForm<CreateTenantRequest>({
     resolver: zodResolver(createTenantRequestSchema),
     defaultValues: { name: '' },
-    // Validate on submit, then live: blur validation shifted the layout under the pointer.
     mode: 'onSubmit',
-    reValidateMode: 'onChange',
   });
   const { errors, isSubmitting } = form.formState;
 
@@ -51,9 +52,60 @@ export function CreateWorkspaceForm() {
           aria-invalid={!!errors.name}
           {...form.register('name')}
         />
-        <FieldDescription>Daha sonra değiştirebilirsiniz.</FieldDescription>
         <FieldError errors={[errors.name]} />
       </Field>
+
+      <fieldset className="flex flex-col gap-4 rounded-lg border p-4">
+        <legend className="px-1 text-sm font-medium">Birkaç soru (isteğe bağlı)</legend>
+        <Field>
+          <FieldLabel htmlFor="sector">Sektörünüz</FieldLabel>
+          <select id="sector" className={selectClass} {...form.register('sector')}>
+            <option value="">Seçin</option>
+            <option value="REAL_ESTATE_OFFICE">Emlak ofisi</option>
+            <option value="INDEPENDENT_AGENT">Bağımsız danışman</option>
+            <option value="DEVELOPER">Müteahhit / geliştirici</option>
+            <option value="OTHER">Diğer</option>
+          </select>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="teamSizeBand">Ekibinizde kaç kişi var?</FieldLabel>
+          <select id="teamSizeBand" className={selectClass} {...form.register('teamSizeBand')}>
+            <option value="">Seçin</option>
+            <option value="1">Sadece ben</option>
+            <option value="2-5">2–5 kişi</option>
+            <option value="6-20">6–20 kişi</option>
+            <option value="21+">21 ve üzeri</option>
+          </select>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="expectedVideosPerMonth">
+            Ayda kaç video üretmeyi düşünüyorsunuz?
+          </FieldLabel>
+          <Input
+            id="expectedVideosPerMonth"
+            type="number"
+            min={0}
+            max={10000}
+            inputMode="numeric"
+            {...form.register('expectedVideosPerMonth', {
+              setValueAs: (v) => (v === '' ? undefined : Number(v)),
+            })}
+          />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="referralSource">Bizi nereden duydunuz?</FieldLabel>
+          <select id="referralSource" className={selectClass} {...form.register('referralSource')}>
+            <option value="">Seçin</option>
+            <option value="SEARCH">Arama motoru</option>
+            <option value="SOCIAL">Sosyal medya</option>
+            <option value="REFERRAL">Tavsiye</option>
+            <option value="EVENT">Etkinlik / fuar</option>
+            <option value="OTHER">Diğer</option>
+          </select>
+          <FieldDescription>Bu bilgi ürünü geliştirmek için kullanılır.</FieldDescription>
+        </Field>
+      </fieldset>
+
       <Button type="submit" disabled={isSubmitting} className="w-full">
         {isSubmitting ? 'Oluşturuluyor…' : 'Workspace oluştur'}
       </Button>

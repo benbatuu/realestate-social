@@ -1,3 +1,4 @@
+import { NotificationsService } from '../notifications/notifications.service';
 import type {
   CreateInvitationRequest,
   CreateInvitationResponse,
@@ -14,7 +15,7 @@ import { APP_CONFIG, type AppConfig } from '../config/config.module';
 import { EntitlementsService } from '../entitlements/entitlements.service';
 import type { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../infra/prisma.service';
-import { hasAtLeast } from '../tenants/roles';
+import { hasAtLeast, ROLE_NAME_TR } from '../tenants/roles';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -43,6 +44,7 @@ export class InvitationsService {
     private readonly audit: AuditService,
     private readonly entitlements: EntitlementsService,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /**
@@ -194,6 +196,20 @@ export class InvitationsService {
         targetId: row.id,
         requestId,
       });
+      await this.notifications.notifyTeam(
+        row.tenantId,
+        {
+          kind: 'team.member_joined',
+          title: 'Yeni üye katıldı',
+          body: `${user.name} (${ROLE_NAME_TR[row.role]}) ekibe katıldı.`,
+          link: '/team',
+          details: [
+            { label: 'Kişi', value: `${user.name} (${user.email})` },
+            { label: 'Rol', value: ROLE_NAME_TR[row.role] },
+          ],
+        },
+        tx,
+      );
       await this.audit.record(tx, {
         action: 'membership.created',
         tenantId: row.tenantId,
@@ -204,6 +220,30 @@ export class InvitationsService {
         requestId,
       });
       return { id: row.tenant.id, name: row.tenant.name, slug: row.tenant.slug, role: row.role };
+    });
+  }
+
+  /** Cancels a pending invitation so its link stops working. */
+  async revoke(
+    tenantId: string,
+    actorUserId: string,
+    invitationId: string,
+    requestId: string | undefined,
+  ): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      const moved = await tx.invitation.updateMany({
+        where: { id: invitationId, tenantId, status: 'PENDING' },
+        data: { status: 'REVOKED' },
+      });
+      if (moved.count !== 1) throw AppError.notFound('Invitation not found');
+      await this.audit.record(tx, {
+        action: 'invitation.revoked',
+        tenantId,
+        actorUserId,
+        targetType: 'invitation',
+        targetId: invitationId,
+        requestId,
+      });
     });
   }
 }

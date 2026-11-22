@@ -5,7 +5,6 @@ import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AppModule } from '../src/app.module';
 import { configureHttpApp } from '../src/bootstrap';
-import { StorageService } from '../src/infra/storage.service';
 
 // Requires `pnpm services:up` (Postgres, Redis, object storage).
 describe('GET /api/v1/health', () => {
@@ -16,7 +15,6 @@ describe('GET /api/v1/health', () => {
     app = moduleRef.createNestApplication({ bufferLogs: true });
     configureHttpApp(app);
     await app.init();
-    await app.get(StorageService).ensureBucket();
   });
 
   afterAll(async () => {

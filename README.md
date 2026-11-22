@@ -4,9 +4,10 @@ Working name only; the brand is undecided. Product, business rules and architect
 [`product-architecture-blueprint.md`](product-architecture-blueprint.md). Milestone plans live in
 [`docs/`](docs/) and decisions in [`docs/adr/`](docs/adr/).
 
-**Current state: Milestone 1 — multi-tenant foundation.** Sign-up and login, workspaces,
-roles, invitations, plan catalogue and entitlements, and an audit log. No portfolio or video
-features yet. See [`docs/plan-01-m1-multi-tenant-foundation.md`](docs/plan-01-m1-multi-tenant-foundation.md).
+**Current state: Milestone 2 — property data.** Everything in M1, plus CSV/XLSX property import
+(map, preview, commit, error report, history), property list and detail with a coverage score,
+and photo upload. No video features yet. See
+[`docs/plan-02-m2-property-data.md`](docs/plan-02-m2-property-data.md).
 
 ## Stack
 
@@ -97,6 +98,7 @@ Ports differ from the blueprint's 3000/4000 because those were in use on the dev
 - **Auth and tenancy:** cookie sessions, same-origin via the Next.js rewrite, default-deny guard,
   `@TenantScoped()` for workspace routes (ADR 0007). Every new tenant-scoped route must be added
   to `apps/api/test/isolation.int.test.ts`.
+- **Imports:** CSV/XLSX, Turkish formats and encodings, ADR 0008.
 - **Tests:** integration and E2E tests use a separate `app_test` database (created and migrated
   automatically) and environment-prefixed queues, so they never touch dev data.
 - **Providers:** every external AI/CRM/payment service goes behind an adapter, with a mock
@@ -120,7 +122,8 @@ Ports differ from the blueprint's 3000/4000 because those were in use on the dev
 - Plan prices in the seed are the blueprint's **hypotheses** (§4.4), not validated prices.
 - `SIGNUP_PLAN_CODE` stands in for billing: the blueprint defines no free trial, so production
   should leave it empty until a payment provider exists.
-- Not built yet: email verification (anyone can register any address; invitations still require
+- Not built yet: lead data, analytics, CRM API sync, HEIC photos, photo reordering, property editing,
+  email verification (anyone can register any address; invitations still require
   the invited address), role changes, member removal, invitation revoke from the UI, password
   reset, email delivery, multiple workspaces per subscription (`maxWorkspaces`), dark mode.
 - No CI pipeline yet. The commands above are what CI should run.

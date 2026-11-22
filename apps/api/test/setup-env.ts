@@ -8,5 +8,8 @@ process.env['NODE_ENV'] = 'test';
 const testUrl = process.env['TEST_DATABASE_URL'];
 if (!testUrl) throw new Error('TEST_DATABASE_URL is not set (see .env.example)');
 process.env['DATABASE_URL'] = testUrl;
+const testBucket = process.env['TEST_OBJECT_STORAGE_BUCKET'];
+if (!testBucket) throw new Error('TEST_OBJECT_STORAGE_BUCKET is not set (see .env.example)');
+process.env['OBJECT_STORAGE_BUCKET'] = testBucket;
 // Tests opt in to plans explicitly.
 process.env['SIGNUP_PLAN_CODE'] = '';

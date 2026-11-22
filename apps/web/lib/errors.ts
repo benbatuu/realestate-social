@@ -9,12 +9,27 @@ const MESSAGES: Record<ErrorCode, string> = {
   TOO_MANY_ATTEMPTS: 'Çok fazla başarısız deneme yapıldı. Birkaç dakika sonra tekrar deneyin.',
   EMAIL_TAKEN: 'Bu e-posta adresiyle zaten bir hesap var. Giriş yapmayı deneyin.',
   SEAT_LIMIT_REACHED: 'Paketinizdeki kullanıcı koltukları dolu.',
+  MEMBERSHIP_DISABLED: 'Bu workspace için üyeliğiniz pasif. Yöneticinize başvurun.',
   ALREADY_MEMBER: 'Bu kişi zaten workspace üyesi.',
   INVITATION_PENDING: 'Bu adrese gönderilmiş bekleyen bir davet var.',
   INVITATION_INVALID: 'Davet geçersiz, kullanılmış veya süresi dolmuş.',
   INVITATION_EMAIL_MISMATCH:
     'Bu davet başka bir e-posta adresine gönderilmiş. Davet edilen adresle giriş yapın.',
   ORIGIN_NOT_ALLOWED: 'İstek reddedildi. Sayfayı yenileyip tekrar deneyin.',
+  FILE_REQUIRED: 'Bir dosya seçin.',
+  FILE_TOO_LARGE: 'Dosya çok büyük.',
+  FILE_UNSUPPORTED: 'Bu dosya okunamadı. CSV ya da Excel (.xlsx) yükleyin.',
+  FILE_EMPTY: 'Dosyada başlık satırının altında veri yok.',
+  FILE_TOO_MANY_ROWS: 'Dosyada çok fazla satır var. Dosyayı bölerek yükleyin.',
+  IMPORT_NOT_EDITABLE:
+    'Bu içe aktarma zaten başlatılmış ya da süresi dolmuş. Dosyayı yeniden yükleyin.',
+  MAPPING_INVALID: 'Sütun eşlemesini kontrol edin.',
+  PHOTO_LIMIT_REACHED: 'Bu mülk için fotoğraf sınırına ulaşıldı.',
+  INSUFFICIENT_CREDITS: 'Kredi yetersiz. Paketinizi yükseltin ya da kredi satın alın.',
+  GENERATION_STATE_INVALID: 'Bu üretim artık bu işlem için uygun değil.',
+  NO_ACTIVE_PLAN: 'Aktif bir paketiniz yok.',
+  NO_PHOTOS: 'Video üretmek için önce mülke en az bir fotoğraf ekleyin.',
+  IDEMPOTENCY_KEY_REQUIRED: 'İstek anahtarı eksik. Sayfayı yenileyip tekrar deneyin.',
   INTERNAL_ERROR: 'Bir sorun oluştu. Lütfen tekrar deneyin.',
 };
 

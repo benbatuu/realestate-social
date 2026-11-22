@@ -8,11 +8,58 @@ import { redisConnectionOptions } from '../infra/redis';
  */
 export const QUEUES = {
   system: 'system',
+  crmSync: 'crm-sync',
+  video: 'video-pipeline',
+  analytics: 'analytics',
 } as const;
+
+export const ANALYTICS_JOBS = {
+  compute: 'compute',
+  refreshAll: 'refresh-all',
+} as const;
+
+export interface AnalyticsComputeJob {
+  snapshotId: string;
+  tenantId: string;
+  days: number;
+}
+
+export interface VideoStageJob {
+  generationId: string;
+  tenantId: string;
+  /** How many times this stage has waited on a provider (AI clips take minutes). */
+  poll?: number;
+}
 
 export const SYSTEM_JOBS = {
   noop: 'noop',
+  expireImports: 'expire-imports',
+  deleteAccounts: 'delete-accounts',
+  applyPlanChanges: 'apply-plan-changes',
+  notifyOverdueFollowups: 'notify-overdue-followups',
 } as const;
+
+export const CRM_SYNC_JOBS = {
+  fileImportCommit: 'file-import-commit',
+  leadpilotSync: 'leadpilot-sync',
+  leadpilotPush: 'leadpilot-push',
+  leadpilotSyncAll: 'leadpilot-sync-all',
+} as const;
+
+export interface LeadPilotSyncJob {
+  tenantId: string;
+  connectionId: string;
+}
+
+export interface LeadPilotPushJob {
+  tenantId: string;
+  leadId: string;
+}
+
+export interface FileImportCommitJob {
+  syncRunId: string;
+  tenantId: string;
+}
 
 export function queuePrefix(nodeEnv: string): string {
   return `bull-${nodeEnv}`;

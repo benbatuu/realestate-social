@@ -1,4 +1,8 @@
 import {
+  changePasswordRequestSchema,
+  type ChangePasswordRequest,
+  updateProfileRequestSchema,
+  type UpdateProfileRequest,
   loginRequestSchema,
   type LoginRequest,
   meResponseSchema,
@@ -6,7 +10,31 @@ import {
   registerRequestSchema,
   type RegisterRequest,
 } from '@app/shared';
-import { Body, Controller, Get, HttpCode, HttpStatus, Post, Req, Res } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Patch,
+  Post,
+  Req,
+  Res,
+  UploadedFile,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiConsumes } from '@nestjs/swagger';
+import { AppError } from '../common/http/app-error';
+import { UuidParam } from '../common/http/uuid-param';
+import {
+  accountDeletionSchema,
+  deletionRequestSchema,
+  type AccountDeletion,
+  type DeletionRequest,
+} from '@app/shared';
 import { ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import {
@@ -74,5 +102,76 @@ export class AuthController {
   @ApiZodResponse(200, meResponseSchema)
   me(@CurrentAuth() auth: AuthContext): Promise<MeResponse> {
     return this.auth.me(auth.userId);
+  }
+
+  @Patch('me')
+  @ApiZodBody(updateProfileRequestSchema)
+  @ApiZodResponse(200, meResponseSchema)
+  updateProfile(
+    @CurrentAuth() auth: AuthContext,
+    @Body(new ZodPipe(updateProfileRequestSchema)) body: UpdateProfileRequest,
+  ): Promise<MeResponse> {
+    return this.auth.updateProfile(auth.userId, body);
+  }
+
+  @Post('me/avatar')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 5 * 1024 * 1024, files: 1 } }))
+  @ApiConsumes('multipart/form-data')
+  @ApiZodResponse(201, meResponseSchema)
+  uploadAvatar(
+    @CurrentAuth() auth: AuthContext,
+    @UploadedFile() file: Express.Multer.File | undefined,
+  ): Promise<MeResponse> {
+    if (!file) throw new AppError(HttpStatus.BAD_REQUEST, 'FILE_REQUIRED', 'A file is required');
+    return this.auth.setAvatar(auth.userId, file.buffer);
+  }
+
+  @Delete('me/avatar')
+  removeAvatar(@CurrentAuth() auth: AuthContext): Promise<MeResponse> {
+    return this.auth.removeAvatar(auth.userId);
+  }
+
+  @Post('password')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiZodBody(changePasswordRequestSchema)
+  async changePassword(
+    @CurrentAuth() auth: AuthContext,
+    @Body(new ZodPipe(changePasswordRequestSchema)) body: ChangePasswordRequest,
+    @ReqId() requestId: string | undefined,
+  ): Promise<void> {
+    await this.auth.changePassword(auth.userId, auth.sessionId, body, requestId);
+  }
+
+  @Get('data-export')
+  dataExport(@CurrentAuth() auth: AuthContext) {
+    return this.auth.exportData(auth.userId);
+  }
+
+  @Post('data-requests')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiZodBody(deletionRequestSchema)
+  @ApiZodResponse(201, accountDeletionSchema)
+  requestDeletion(
+    @CurrentAuth() auth: AuthContext,
+    @Body(new ZodPipe(deletionRequestSchema)) body: DeletionRequest,
+    @ReqId() requestId: string | undefined,
+  ): Promise<AccountDeletion> {
+    return this.auth.requestDeletion(auth.userId, body, requestId);
+  }
+
+  @Get('data-requests/open')
+  @ApiZodResponse(200, accountDeletionSchema.nullable())
+  openDeletion(@CurrentAuth() auth: AuthContext): Promise<AccountDeletion | null> {
+    return this.auth.openDeletion(auth.userId);
+  }
+
+  @Post('data-requests/:id/cancel')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async cancelDeletion(
+    @CurrentAuth() auth: AuthContext,
+    @Param('id', UuidParam) id: string,
+    @ReqId() requestId: string | undefined,
+  ): Promise<void> {
+    await this.auth.cancelDeletion(auth.userId, id, requestId);
   }
 }

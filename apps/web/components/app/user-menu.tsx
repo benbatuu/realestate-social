@@ -1,10 +1,10 @@
 'use client';
 
-import type { User } from '@app/shared';
-import { LogOutIcon } from 'lucide-react';
+import type { UserProfile } from '@app/shared';
+import { CreditCardIcon, LogOutIcon, SettingsIcon, UserIcon } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,7 +18,19 @@ import { apiPost } from '@/lib/api/client';
 import { errorMessage } from '@/lib/errors';
 import { initials } from '@/lib/format';
 
-export function UserMenu({ user }: { user: User }) {
+/**
+ * Top-bar account control: avatar and a menu with profile, settings, billing and sign-out.
+ */
+export function UserMenu({
+  user,
+  slug,
+  isManager,
+}: {
+  user: UserProfile;
+  slug: string;
+  /** Billing is for managers and above. */
+  isManager: boolean;
+}) {
   const router = useRouter();
 
   async function logout() {
@@ -34,10 +46,11 @@ export function UserMenu({ user }: { user: User }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        className="rounded-full focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+        className="flex items-center gap-3 rounded-md px-1.5 py-1 hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
         aria-label="Hesap menüsü"
       >
         <Avatar className="size-8">
+          {user.avatarUrl && <AvatarImage src={user.avatarUrl} alt="" />}
           <AvatarFallback>{initials(user.name)}</AvatarFallback>
         </Avatar>
       </DropdownMenuTrigger>
@@ -49,9 +62,24 @@ export function UserMenu({ user }: { user: User }) {
           </DropdownMenuLabel>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => router.push(`/w/${slug}/profile`)}>
+          <UserIcon className="size-4" aria-hidden />
+          Profil
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => router.push(`/w/${slug}/settings`)}>
+          <SettingsIcon className="size-4" aria-hidden />
+          Ayarlar
+        </DropdownMenuItem>
+        {isManager && (
+          <DropdownMenuItem onClick={() => router.push(`/w/${slug}/billing`)}>
+            <CreditCardIcon className="size-4" aria-hidden />
+            Faturalandırma
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuSeparator />
         <DropdownMenuItem onClick={logout}>
           <LogOutIcon className="size-4" aria-hidden />
-          Çıkış yap
+          Çıkış Yap
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

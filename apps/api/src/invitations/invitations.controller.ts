@@ -11,7 +11,7 @@ import {
   tenantSummarySchema,
   type TenantSummary,
 } from '@app/shared';
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Post } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
 import { Public } from '../auth/public.decorator';
@@ -23,6 +23,7 @@ import {
   type TenantContext,
 } from '../common/http/request-context';
 import { ApiZodBody, ApiZodResponse, ZodPipe } from '../common/http/zod';
+import { UuidParam } from '../common/http/uuid-param';
 import { TenantScoped } from '../tenants/tenant.guard';
 import { InvitationsService } from './invitations.service';
 
@@ -79,5 +80,17 @@ export class InvitationsController {
     @ReqId() requestId: string | undefined,
   ): Promise<TenantSummary> {
     return this.invitations.accept(auth.userId, body.token, requestId);
+  }
+
+  @Delete('tenants/:tenantId/invitations/:invitationId')
+  @TenantScoped('ADMIN')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async revoke(
+    @CurrentTenant() tenant: TenantContext,
+    @CurrentAuth() auth: AuthContext,
+    @Param('invitationId', UuidParam) invitationId: string,
+    @ReqId() requestId: string | undefined,
+  ): Promise<void> {
+    await this.invitations.revoke(tenant.tenantId, auth.userId, invitationId, requestId);
   }
 }

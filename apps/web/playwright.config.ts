@@ -22,7 +22,6 @@ export default defineConfig({
   forbidOnly: !!process.env['CI'],
   retries: process.env['CI'] ? 1 : 0,
   reporter: [['list']],
-  globalSetup: './e2e/global-setup.ts',
   use: {
     baseURL: WEB_URL,
     locale: 'tr-TR',
@@ -33,7 +32,10 @@ export default defineConfig({
   webServer: [
     {
       // Own output dir: `nest build` would wipe the dist/ a running `pnpm dev` serves from.
-      command: 'pnpm exec tsc -p tsconfig.build.json --outDir dist-e2e && node dist-e2e/main.js',
+      // Fresh test DB, one build, then API and worker together so queued imports complete.
+      // (Playwright starts webServers before globalSetup, so prep lives here.)
+      command:
+        'pnpm --dir ../api run db:test:prepare --truncate && pnpm --dir ../api exec tsc -p tsconfig.build.json --outDir dist-e2e && (node ../api/dist-e2e/worker.js & node ../api/dist-e2e/main.js)',
       cwd: apiDir,
       url: `${API_URL}/api/v1/health`,
       reuseExistingServer: false,
@@ -46,6 +48,7 @@ export default defineConfig({
         DATABASE_URL: testDatabaseUrl,
         // E2E opts in to a multi-seat plan so the invitation flow (acceptance #1) can run.
         SIGNUP_PLAN_CODE: 'growth',
+        OBJECT_STORAGE_BUCKET: process.env['TEST_OBJECT_STORAGE_BUCKET'] ?? 'app-test',
       },
     },
     {

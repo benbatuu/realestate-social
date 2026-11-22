@@ -20,19 +20,27 @@ enum UserStatus {
 }
 
 model User {
-  id           String     @id @default(uuid(7)) @db.Uuid
+  id               String     @id @default(uuid(7)) @db.Uuid
   /// Always stored lower-cased and trimmed (normalised in the application layer).
-  email        String     @unique
-  name         String
-  passwordHash String
-  status       UserStatus @default(ACTIVE)
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  email            String     @unique
+  name             String
+  phone            String?
+  jobTitle         String?
+  /// Storage key of the 256 px WebP avatar. Null means initials.
+  avatarStorageKey String?
+  passwordHash     String
+  status           UserStatus @default(ACTIVE)
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
 
   sessions            Session[]
+  notifications       Notification[]
   memberships         Membership[]
-  invitationsSent     Invitation[] @relation("InvitationInvitedBy")
-  invitationsAccepted Invitation[] @relation("InvitationAcceptedBy")
+  syncRuns            SyncRun[]
+  consents            ConsentRecord[]
+  dataRequests        DataRequest[]
+  invitationsSent     Invitation[]    @relation("InvitationInvitedBy")
+  invitationsAccepted Invitation[]    @relation("InvitationAcceptedBy")
 
   @@map("users")
 }
@@ -63,17 +71,44 @@ enum TenantStatus {
 }
 
 model Tenant {
-  id        String       @id @default(uuid(7)) @db.Uuid
-  name      String
-  slug      String       @unique
-  status    TenantStatus @default(ACTIVE)
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  id                     String       @id @default(uuid(7)) @db.Uuid
+  name                   String
+  slug                   String       @unique
+  status                 TenantStatus @default(ACTIVE)
+  // Company profile (managed by owners and admins)
+  legalName              String?
+  taxOffice              String?
+  taxNumber              String?
+  phone                  String?
+  website                String?
+  addressLine            String?
+  city                   String?
+  district               String?
+  timezone               String       @default("Europe/Istanbul")
+  // Onboarding answers (asked once, when the workspace is created)
+  sector                 String?
+  teamSizeBand           String?
+  referralSource         String?
+  expectedVideosPerMonth Int?
+  createdAt              DateTime     @default(now())
+  updatedAt              DateTime     @updatedAt
 
-  memberships   Membership[]
-  invitations   Invitation[]
-  subscriptions Subscription[]
-  auditLogs     AuditLog[]
+  memberships        Membership[]
+  notifications      Notification[]
+  invitations        Invitation[]
+  subscriptions      Subscription[]
+  auditLogs          AuditLog[]
+  crmConnections     CrmConnection[]
+  syncRuns           SyncRun[]
+  properties         Property[]
+  propertyAssets     PropertyAsset[]
+  creditAccount      CreditAccount?
+  videoProjects      VideoProject[]
+  leads              Lead[]
+  leadNotes          LeadNote[]
+  leadNoteRevisions  LeadNoteRevision[]
+  videoGenerations   VideoGeneration[]
+  analyticsSnapshots AnalyticsSnapshot[]
 
   @@map("tenants")
 }
@@ -87,12 +122,18 @@ enum MembershipRole {
   VIEWER
 }
 
+enum MembershipStatus {
+  ACTIVE
+  DISABLED
+}
+
 model Membership {
-  id        String         @id @default(uuid(7)) @db.Uuid
-  tenantId  String         @db.Uuid
-  userId    String         @db.Uuid
+  id        String           @id @default(uuid(7)) @db.Uuid
+  tenantId  String           @db.Uuid
+  userId    String           @db.Uuid
   role      MembershipRole
-  createdAt DateTime       @default(now())
+  status    MembershipStatus @default(ACTIVE)
+  createdAt DateTime         @default(now())
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -143,6 +184,7 @@ model Plan {
   monthlyCredits            Int
   freeRegenerationAllowance Int
   maxSeats                  Int
+  maxPhotosPerProperty      Int      @default(30)
   maxWorkspaces             Int
   maxCrmConnections         Int
   retentionDays             Int
@@ -151,7 +193,8 @@ model Plan {
   createdAt                 DateTime @default(now())
   updatedAt                 DateTime @updatedAt
 
-  subscriptions Subscription[]
+  subscriptions        Subscription[]
+  pendingSubscriptions Subscription[] @relation("PendingPlan")
 
   @@map("plans")
 }
@@ -174,11 +217,15 @@ model Subscription {
   currentPeriodStart     DateTime
   currentPeriodEnd       DateTime
   cancelAtPeriodEnd      Boolean            @default(false)
+  /// Downgrade waiting for the period end. Upgrades apply at once and clear it.
+  pendingPlanId          String?            @db.Uuid
+  planChangeAt           DateTime?
   createdAt              DateTime           @default(now())
   updatedAt              DateTime           @updatedAt
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  plan   Plan   @relation(fields: [planId], references: [id])
+  tenant      Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  plan        Plan   @relation(fields: [planId], references: [id])
+  pendingPlan Plan?  @relation("PendingPlan", fields: [pendingPlanId], references: [id])
 
   @@index([tenantId, status])
   @@map("subscriptions")
@@ -204,4 +251,655 @@ model AuditLog {
   @@index([tenantId, createdAt])
   @@index([actorUserId, createdAt])
   @@map("audit_logs")
+}
+
+// ---------------------------------------------------------------------------
+// Data sources and imports (§7, §10.3)
+// ---------------------------------------------------------------------------
+
+enum CrmProvider {
+  CSV
+  LEADPILOT
+  GENERIC_REST
+}
+
+enum CrmConnectionStatus {
+  PENDING
+  ACTIVE
+  DISABLED
+}
+
+/// A source of property data. File imports use a per-tenant CSV source (systemKey "file-import").
+model CrmConnection {
+  id                   String              @id @default(uuid(7)) @db.Uuid
+  tenantId             String              @db.Uuid
+  provider             CrmProvider
+  name                 String
+  status               CrmConnectionStatus @default(ACTIVE)
+  /// Stable key for sources the system creates itself; null for user-created connections.
+  systemKey            String?
+  encryptedCredentials String?
+  capabilitiesJson     Json?
+  lastSyncAt           DateTime?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+
+  tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  syncRuns   SyncRun[]
+  properties Property[]
+
+  @@unique([tenantId, systemKey])
+  @@index([tenantId])
+  @@map("crm_connections")
+}
+
+enum SyncRunKind {
+  FILE_IMPORT
+  API_SYNC
+}
+
+enum SyncRunStatus {
+  UPLOADED
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+  EXPIRED
+}
+
+enum ImportFileFormat {
+  CSV
+  XLSX
+}
+
+/// One import or sync. For file imports the uploaded file lives in object storage until the
+/// run completes or expires, then it is deleted (it may hold personal data in unmapped columns).
+model SyncRun {
+  id               String            @id @default(uuid(7)) @db.Uuid
+  tenantId         String            @db.Uuid
+  crmConnectionId  String            @db.Uuid
+  kind             SyncRunKind
+  status           SyncRunStatus
+  fileName         String?
+  fileFormat       ImportFileFormat?
+  fileStorageKey   String?
+  fileSize         Int?
+  mappingJson      Json?
+  totalRows        Int               @default(0)
+  processedRows    Int               @default(0)
+  recordsCreated   Int               @default(0)
+  recordsUpdated   Int               @default(0)
+  recordsUnchanged Int               @default(0)
+  recordsFailed    Int               @default(0)
+  /// Current step in plain words (API sync only).
+  stage            String?
+  photosAdded      Int               @default(0)
+  photosSkipped    Int               @default(0)
+  /// Safe summary only (error class / code), never row contents.
+  errorSummary     String?
+  createdByUserId  String?           @db.Uuid
+  startedAt        DateTime?
+  finishedAt       DateTime?
+  expiresAt        DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  tenant        Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  crmConnection CrmConnection     @relation(fields: [crmConnectionId], references: [id], onDelete: Cascade)
+  createdBy     User?             @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  rowErrors     SyncRunRowError[]
+
+  @@index([tenantId, createdAt])
+  @@index([status, expiresAt])
+  @@map("sync_runs")
+}
+
+/// Row number, field and message only: never the cell value.
+model SyncRunRowError {
+  id        String  @id @default(uuid(7)) @db.Uuid
+  tenantId  String  @db.Uuid
+  syncRunId String  @db.Uuid
+  rowNumber Int
+  field     String?
+  message   String
+
+  syncRun SyncRun @relation(fields: [syncRunId], references: [id], onDelete: Cascade)
+
+  @@index([syncRunId, rowNumber])
+  @@map("sync_run_row_errors")
+}
+
+// ---------------------------------------------------------------------------
+// Properties (§10.3). Facts here are the only ones video scripts may use (§3.6).
+// ---------------------------------------------------------------------------
+
+enum ListingType {
+  SALE
+  RENT
+}
+
+enum PropertyStatus {
+  ACTIVE
+  INACTIVE
+  SOLD
+  RENTED
+}
+
+model Property {
+  id                    String         @id @default(uuid(7)) @db.Uuid
+  tenantId              String         @db.Uuid
+  crmConnectionId       String?        @db.Uuid
+  externalId            String?
+  title                 String
+  description           String?
+  listingType           ListingType
+  propertyType          String?
+  status                PropertyStatus @default(ACTIVE)
+  /// Minor units (kuruş/cent).
+  priceMinor            BigInt?
+  priceCurrency         String?
+  grossAreaM2           Decimal?       @db.Decimal(10, 2)
+  netAreaM2             Decimal?       @db.Decimal(10, 2)
+  /// Turkish room layout as written, e.g. "3+1", "2.5+1", "1+0".
+  roomLayout            String?
+  bedroomCount          Int?
+  bathroomCount         Int?
+  floor                 String?
+  totalFloors           Int?
+  buildingAge           Int?
+  heatingType           String?
+  furnished             Boolean?
+  inComplex             Boolean?
+  country               String         @default("TR")
+  city                  String?
+  district              String?
+  neighborhood          String?
+  latitude              Decimal?       @db.Decimal(9, 6)
+  longitude             Decimal?       @db.Decimal(9, 6)
+  listedAt              DateTime?
+  sourceUpdatedAt       DateTime?
+  lastSyncedAt          DateTime?
+  lastSyncRunId         String?        @db.Uuid
+  dataCoverageScore     Int            @default(0)
+  /// Fields a user edited by hand. Later imports leave these alone.
+  manualFields          String[]       @default([])
+  /// Custom cover for the property's video folder. Null: the first photo is used.
+  folderCoverStorageKey String?
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+
+  tenant        Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  crmConnection CrmConnection?  @relation(fields: [crmConnectionId], references: [id], onDelete: SetNull)
+  assets        PropertyAsset[]
+  videoProjects VideoProject[]
+  leads         Lead[]
+
+  @@unique([tenantId, crmConnectionId, externalId])
+  @@index([tenantId, updatedAt])
+  @@index([tenantId, dataCoverageScore])
+  @@map("properties")
+}
+
+enum AssetSourceType {
+  UPLOAD
+  CRM
+  IMPORT
+}
+
+model PropertyAsset {
+  id                String          @id @default(uuid(7)) @db.Uuid
+  tenantId          String          @db.Uuid
+  propertyId        String          @db.Uuid
+  sourceUrl         String?
+  storageKey        String
+  previewStorageKey String?
+  mimeType          String
+  width             Int
+  height            Int
+  fileSize          Int
+  /// SHA-256 of the original bytes; one copy of a photo per property.
+  checksum          String
+  sortOrder         Int
+  sourceType        AssetSourceType
+  uploadedByUserId  String?         @db.Uuid
+  createdAt         DateTime        @default(now())
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([propertyId, checksum])
+  @@index([tenantId, propertyId, sortOrder])
+  @@map("property_assets")
+}
+
+// ---------------------------------------------------------------------------
+// Credits and free regenerations (blueprint §4, §10.2, §10.4). Ledgers are append-only.
+// `amount` on a credit ledger row is the change to AVAILABLE credits only:
+// reserve -1, release +1, capture 0 (reserved -> consumed), grant +n, expire -n, admin ±n.
+// Invariant: sum(amount) = available.
+// ---------------------------------------------------------------------------
+
+model CreditAccount {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  tenantId  String   @unique @db.Uuid
+  available Int      @default(0)
+  reserved  Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("credit_accounts")
+}
+
+enum CreditLedgerType {
+  GRANT
+  RESERVE
+  RELEASE
+  CAPTURE
+  EXPIRE
+  ADMIN_ADJUSTMENT
+}
+
+model CreditLedger {
+  id              String           @id @default(uuid(7)) @db.Uuid
+  tenantId        String           @db.Uuid
+  type            CreditLedgerType
+  amount          Int
+  referenceType   String?
+  referenceId     String?
+  idempotencyKey  String
+  description     String?
+  createdByUserId String?          @db.Uuid
+  createdAt       DateTime         @default(now())
+
+  @@unique([tenantId, idempotencyKey])
+  @@index([tenantId, createdAt])
+  @@map("credit_ledger")
+}
+
+/// One row per billing period (keyed by the subscription period start).
+model FreeRegenerationAccount {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  tenantId    String   @db.Uuid
+  periodStart DateTime
+  periodEnd   DateTime
+  granted     Int
+  available   Int
+  reserved    Int      @default(0)
+  consumed    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([tenantId, periodStart])
+  @@map("free_regeneration_accounts")
+}
+
+enum FreeRegenerationLedgerType {
+  GRANT
+  RESERVE
+  RELEASE
+  CONSUME
+  EXPIRE
+}
+
+model FreeRegenerationLedger {
+  id             String                     @id @default(uuid(7)) @db.Uuid
+  tenantId       String                     @db.Uuid
+  accountId      String                     @db.Uuid
+  type           FreeRegenerationLedgerType
+  amount         Int
+  referenceId    String?
+  idempotencyKey String
+  createdAt      DateTime                   @default(now())
+
+  @@unique([tenantId, idempotencyKey])
+  @@index([accountId])
+  @@map("free_regeneration_ledger")
+}
+
+// ---------------------------------------------------------------------------
+// Video projects and generations: the minimal subset M3 needs. M4 adds the pipeline.
+// ---------------------------------------------------------------------------
+
+enum BillingType {
+  INITIAL_CREDIT
+  FREE_REGENERATION
+  PAID_REGENERATION
+}
+
+enum VideoGenerationStatus {
+  RESERVED
+  CAPTURED
+  RELEASED
+}
+
+model VideoProject {
+  id                   String   @id @default(uuid(7)) @db.Uuid
+  tenantId             String   @db.Uuid
+  propertyId           String   @db.Uuid
+  createdByUserId      String?  @db.Uuid
+  title                String
+  freeRegenerationUsed Boolean  @default(false)
+  generationCount      Int      @default(0)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  tenant      Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property    Property          @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  generations VideoGeneration[]
+
+  @@index([tenantId, createdAt])
+  @@map("video_projects")
+}
+
+enum VideoStage {
+  QUEUED
+  VALIDATING
+  ANALYZING_PHOTOS
+  PLANNING_SCENES
+  GENERATING_SCRIPT
+  GENERATING_AI_SCENES
+  GENERATING_VOICE
+  SELECTING_MUSIC
+  COMPOSING_VIDEO
+  RENDERING
+  QUALITY_CHECK
+  COMPLETED
+  FAILED
+}
+
+model VideoGeneration {
+  id                   String                @id @default(uuid(7)) @db.Uuid
+  tenantId             String                @db.Uuid
+  videoProjectId       String                @db.Uuid
+  generationNumber     Int
+  status               VideoGenerationStatus
+  billingType          BillingType
+  idempotencyKey       String
+  stage                VideoStage            @default(QUEUED)
+  progress             Int                   @default(0)
+  durationSeconds      Int                   @default(30)
+  /// Property facts frozen at start (§3.6). The script may use only these.
+  propertySnapshotJson Json?
+  scriptJson           Json?
+  manifestJson         Json?
+  failureCode          String?
+  failureMessage       String?
+  /// True while outputs are placeholders (no renderer yet, M5). Never shown as real video.
+  isMock               Boolean               @default(true)
+  startedAt            DateTime?
+  createdAt            DateTime              @default(now())
+  completedAt          DateTime?
+  scenes               VideoScene[]
+  providerUsages       ProviderUsage[]
+  outputs              VideoOutput[]
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  videoProject VideoProject @relation(fields: [videoProjectId], references: [id], onDelete: Cascade)
+
+  @@unique([videoProjectId, generationNumber])
+  @@unique([tenantId, idempotencyKey])
+  @@map("video_generations")
+}
+
+model VideoScene {
+  id                String   @id @default(uuid(7)) @db.Uuid
+  tenantId          String   @db.Uuid
+  videoGenerationId String   @db.Uuid
+  sceneNumber       Int
+  sceneType         String
+  sourceAssetId     String?  @db.Uuid
+  provider          String?
+  model             String?
+  durationSeconds   Int
+  externalJobId     String?
+  /// Storage key of the downloaded provider clip (null for photo scenes and mock clips).
+  clipStorageKey    String?
+  /// Same photo, model, prompt and output settings in the same workspace reuse this clip (plan-08).
+  cacheKey          String?
+  status            String   @default("PLANNED")
+  costMicroUsd      Int?
+  createdAt         DateTime @default(now())
+
+  generation VideoGeneration @relation(fields: [videoGenerationId], references: [id], onDelete: Cascade)
+
+  @@unique([videoGenerationId, sceneNumber])
+  @@index([tenantId, cacheKey])
+  @@map("video_scenes")
+}
+
+model ProviderUsage {
+  id                    String   @id @default(uuid(7)) @db.Uuid
+  tenantId              String   @db.Uuid
+  videoGenerationId     String   @db.Uuid
+  provider              String
+  model                 String
+  operation             String
+  externalRequestId     String?
+  units                 Int
+  unitType              String
+  estimatedCostMicroUsd Int
+  /// Cost the provider billed, once known. Spend checks use it in place of the estimate.
+  actualCostMicroUsd    Int?
+  status                String
+  isMock                Boolean  @default(true)
+  createdAt             DateTime @default(now())
+
+  generation VideoGeneration @relation(fields: [videoGenerationId], references: [id], onDelete: Cascade)
+
+  @@index([videoGenerationId])
+  @@index([isMock, createdAt])
+  @@map("provider_usages")
+}
+
+model VideoOutput {
+  id                String   @id @default(uuid(7)) @db.Uuid
+  tenantId          String   @db.Uuid
+  videoGenerationId String   @db.Uuid
+  format            String
+  storageKey        String
+  mimeType          String
+  fileSize          Int
+  durationSeconds   Int
+  width             Int
+  height            Int
+  checksum          String
+  rendererVersion   String
+  createdAt         DateTime @default(now())
+
+  generation VideoGeneration @relation(fields: [videoGenerationId], references: [id], onDelete: Cascade)
+
+  @@unique([videoGenerationId, format])
+  @@map("video_outputs")
+}
+
+// ---------------------------------------------------------------------------
+// Compliance (KVKK): consent evidence and data-subject requests.
+// ---------------------------------------------------------------------------
+
+enum ConsentType {
+  TERMS
+  PRIVACY_NOTICE
+  MARKETING
+}
+
+model ConsentRecord {
+  id         String      @id @default(uuid(7)) @db.Uuid
+  userId     String      @db.Uuid
+  type       ConsentType
+  version    String
+  granted    Boolean
+  acceptedAt DateTime    @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type])
+  @@map("consent_records")
+}
+
+enum DataRequestKind {
+  EXPORT
+  DELETE
+}
+
+enum DataRequestStatus {
+  OPEN
+  DONE
+  CANCELLED
+}
+
+model DataRequest {
+  id           String            @id @default(uuid(7)) @db.Uuid
+  userId       String            @db.Uuid
+  kind         DataRequestKind
+  status       DataRequestStatus @default(OPEN)
+  /// Why the user leaves (product feedback). Optional free text, never shown to others.
+  reason       String?
+  reasonDetail String?
+  /// Deletion runs at this time unless cancelled (grace period).
+  scheduledFor DateTime?
+  createdAt    DateTime          @default(now())
+  completedAt  DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, kind])
+  @@map("data_requests")
+}
+
+enum LeadSource {
+  MANUAL
+  WEB_FORM
+  PHONE
+  CRM
+  OTHER
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  WON
+  LOST
+}
+
+model Lead {
+  id                String     @id @default(uuid(7)) @db.Uuid
+  tenantId          String     @db.Uuid
+  propertyId        String?    @db.Uuid
+  source            LeadSource @default(MANUAL)
+  status            LeadStatus @default(NEW)
+  /// Full name as the user writes it.
+  label             String?
+  email             String?
+  phone             String?
+  /// Legacy single note; new notes live in LeadNote. Not written any more.
+  note              String?
+  /// When the user plans the next contact (call, visit, offer).
+  nextActionAt      DateTime?
+  createdById       String?    @db.Uuid
+  /// Member the lead is handed to. Null: nobody yet.
+  assignedToId      String?    @db.Uuid
+  /// Set when the overdue follow-up notice was sent, so it is sent once per due date.
+  overdueNotifiedAt DateTime?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  tenant   Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property Property?  @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  notes    LeadNote[]
+
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, propertyId])
+}
+
+/// Step by step notes on a lead. Append-only: a note is added or removed, never rewritten.
+model LeadNote {
+  id         String             @id @default(uuid(7)) @db.Uuid
+  tenantId   String             @db.Uuid
+  leadId     String             @db.Uuid
+  authorId   String?            @db.Uuid
+  body       String
+  createdAt  DateTime           @default(now())
+  /// Last edit. Notes are never deleted; every earlier text is kept in LeadNoteRevision.
+  editedAt   DateTime?
+  editedById String?            @db.Uuid
+  revisions  LeadNoteRevision[]
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  lead   Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, leadId, createdAt])
+}
+
+/// A text a note had before it was edited, with who wrote it and when it was replaced.
+model LeadNoteRevision {
+  id           String   @id @default(uuid(7)) @db.Uuid
+  tenantId     String   @db.Uuid
+  noteId       String   @db.Uuid
+  body         String
+  writtenById  String?  @db.Uuid
+  writtenAt    DateTime
+  replacedAt   DateTime @default(now())
+  replacedById String?  @db.Uuid
+
+  note   LeadNote @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  tenant Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, noteId, replacedAt])
+}
+
+enum AnalyticsStatus {
+  RUNNING
+  DONE
+  FAILED
+}
+
+/// One analysis run for a tenant and period. Computed in the background; the page reads the newest DONE one.
+model AnalyticsSnapshot {
+  id          String          @id @default(uuid(7)) @db.Uuid
+  tenantId    String          @db.Uuid
+  days        Int
+  status      AnalyticsStatus @default(RUNNING)
+  requestedAt DateTime        @default(now())
+  completedAt DateTime?
+  payloadJson Json?
+  error       String?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, days, status, requestedAt])
+}
+
+/// In-app notice for one member. Read state is per user.
+model Notification {
+  id        String    @id @default(uuid(7)) @db.Uuid
+  tenantId  String    @db.Uuid
+  userId    String    @db.Uuid
+  kind      String
+  title     String
+  body      String?
+  link      String?
+  details   Json?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, userId, createdAt])
+  @@index([userId, readAt])
+}
+
+/// One member's choice for one notice kind. Missing row: the role default applies.
+model NotificationPreference {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  tenantId  String   @db.Uuid
+  userId    String   @db.Uuid
+  kind      String
+  enabled   Boolean
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, userId, kind])
+  @@index([userId])
 }

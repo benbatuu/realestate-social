@@ -12,6 +12,8 @@ export interface PlanDefinition {
   monthlyCredits: number;
   freeRegenerationAllowance: number;
   maxSeats: number;
+  /** Photos kept per property; extra photos from a CRM sync are skipped and reported. */
+  maxPhotosPerProperty: number;
   maxWorkspaces: number;
   maxCrmConnections: number;
   retentionDays: number;
@@ -33,6 +35,7 @@ export const PLAN_CATALOG: readonly PlanDefinition[] = [
     monthlyCredits: 10,
     freeRegenerationAllowance: 3,
     maxSeats: 2,
+    maxPhotosPerProperty: 30,
     maxWorkspaces: 1,
     maxCrmConnections: 1,
     retentionDays: 30,
@@ -52,6 +55,7 @@ export const PLAN_CATALOG: readonly PlanDefinition[] = [
     monthlyCredits: 30,
     freeRegenerationAllowance: 10,
     maxSeats: 5,
+    maxPhotosPerProperty: 60,
     maxWorkspaces: 1,
     maxCrmConnections: 2,
     retentionDays: 90,
@@ -71,6 +75,7 @@ export const PLAN_CATALOG: readonly PlanDefinition[] = [
     monthlyCredits: 75,
     freeRegenerationAllowance: 25,
     maxSeats: 10,
+    maxPhotosPerProperty: 100,
     maxWorkspaces: 1,
     maxCrmConnections: 3,
     retentionDays: 180,
@@ -90,6 +95,7 @@ export const PLAN_CATALOG: readonly PlanDefinition[] = [
     monthlyCredits: 150,
     freeRegenerationAllowance: 50,
     maxSeats: 25,
+    maxPhotosPerProperty: 200,
     maxWorkspaces: 3,
     maxCrmConnections: 5,
     retentionDays: 365,

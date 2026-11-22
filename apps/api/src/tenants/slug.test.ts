@@ -11,4 +11,8 @@ describe('makeSlug', () => {
   it('falls back when nothing usable remains', () => {
     expect(makeSlug('!!!')).toMatch(/^workspace-[0-9a-f]{6}$/);
   });
+
+  it('uses the plain name on the first try', () => {
+    expect(makeSlug('Çağlar Gayrimenkul', 1)).toBe('caglar-gayrimenkul');
+  });
 });

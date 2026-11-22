@@ -18,10 +18,14 @@ export function RegisterForm({ next }: { next: string | null }) {
   const [formError, setFormError] = useState<string | null>(null);
   const form = useForm<RegisterRequest>({
     resolver: zodResolver(registerRequestSchema),
-    defaultValues: { name: '', email: '', password: '' },
-    // Validate on submit, then live: blur validation shifted the layout under the pointer.
+    defaultValues: {
+      name: '',
+      email: '',
+      password: '',
+      acceptTerms: true,
+      marketingConsent: false,
+    },
     mode: 'onSubmit',
-    reValidateMode: 'onChange',
   });
   const { errors, isSubmitting } = form.formState;
 
@@ -77,6 +81,35 @@ export function RegisterForm({ next }: { next: string | null }) {
           <FieldError errors={[errors.password]} />
         </Field>
       </FieldGroup>
+
+      <div className="flex flex-col gap-3 text-sm">
+        <label className="flex items-start gap-2">
+          <input
+            type="checkbox"
+            className="mt-1"
+            aria-invalid={!!errors.acceptTerms}
+            {...form.register('acceptTerms')}
+          />
+          <span>
+            <Link href="/terms" className="underline underline-offset-4">
+              Kullanım koşulları
+            </Link>
+            ’nı ve{' '}
+            <Link href="/privacy" className="underline underline-offset-4">
+              aydınlatma metnini
+            </Link>{' '}
+            okudum, kabul ediyorum.
+          </span>
+        </label>
+        <FieldError errors={[errors.acceptTerms]} />
+        <label className="flex items-start gap-2">
+          <input type="checkbox" className="mt-1" {...form.register('marketingConsent')} />
+          <span className="text-muted-foreground">
+            Ürün haberleri ve kampanyalar için e-posta almak istiyorum. (İsteğe bağlı)
+          </span>
+        </label>
+      </div>
+
       <Button type="submit" disabled={isSubmitting} className="w-full">
         {isSubmitting ? 'Hesap oluşturuluyor…' : 'Hesap oluştur'}
       </Button>

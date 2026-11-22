@@ -8,6 +8,15 @@ const RANK: Record<MembershipRole, number> = {
   VIEWER: 10,
 };
 
+/** Turkish role names for notices. */
+export const ROLE_NAME_TR: Record<MembershipRole, string> = {
+  OWNER: 'Sahip',
+  ADMIN: 'Yönetici',
+  MANAGER: 'Müdür',
+  MEMBER: 'Danışman',
+  VIEWER: 'Görüntüleyici',
+};
+
 export function hasAtLeast(role: MembershipRole, required: MembershipRole): boolean {
   return RANK[role] >= RANK[required];
 }

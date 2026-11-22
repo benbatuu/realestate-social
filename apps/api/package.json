@@ -13,7 +13,7 @@
     "test:unit": "vitest run --project unit",
     "test:int": "vitest run --project integration",
     "db:generate": "prisma generate",
-    "db:migrate": "prisma migrate dev && prisma generate",
+    "db:migrate": "prisma generate && prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "postinstall": "prisma generate",
     "storage:init": "node scripts/ensure-bucket.mjs",
@@ -23,6 +23,7 @@
   "dependencies": {
     "@app/shared": "workspace:*",
     "@aws-sdk/client-s3": "^3.1175.0",
+    "@aws-sdk/s3-request-presigner": "^3.1175.0",
     "@nestjs/bullmq": "^12.0.2",
     "@nestjs/common": "^12.6.0",
     "@nestjs/core": "^12.6.0",
@@ -32,13 +33,16 @@
     "@prisma/adapter-pg": "7.10.1",
     "@prisma/client": "7.10.1",
     "bullmq": "^6.7.8",
+    "csv-parse": "^7.0.3",
     "ioredis": "^6.0.0",
     "nestjs-pino": "^5.3.2",
     "pg": "^8.23.1",
     "pino": "^10.4.0",
     "pino-http": "^11.0.0",
+    "read-excel-file": "^9.3.20",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
+    "sharp": "^0.35.5",
     "zod": "^4.6.7"
   },
   "devDependencies": {
@@ -46,6 +50,7 @@
     "@nestjs/testing": "^12.6.0",
     "@swc/core": "^1.16.22",
     "@types/express": "^5.0.6",
+    "@types/multer": "^2.3.0",
     "@types/pg": "^8.23.1",
     "@types/supertest": "^7.2.1",
     "concurrently": "^10.0.7",
@@ -54,6 +59,7 @@
     "prisma": "7.10.1",
     "supertest": "^7.3.2",
     "tsx": "^4.23.15",
-    "unplugin-swc": "^2.0.0"
+    "unplugin-swc": "^2.0.0",
+    "write-excel-file": "^4.1.1"
   }
 }

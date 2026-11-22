@@ -15,6 +15,7 @@ const STATUS_CODES: Partial<Record<number, ErrorCode>> = {
   401: 'UNAUTHENTICATED',
   403: 'FORBIDDEN',
   404: 'NOT_FOUND',
+  413: 'FILE_TOO_LARGE',
   429: 'TOO_MANY_ATTEMPTS',
 };
 
@@ -54,7 +55,11 @@ export class ApiErrorFilter implements ExceptionFilter {
     } else {
       // Name and stack frames only: messages (e.g. Prisma validation errors) can echo call
       // arguments such as email addresses or hashes.
-      this.logger.error({ err: safeErrorSummary(exception) }, 'unhandled error');
+      // One plain string: the object form was not reliably printed through the pino logger.
+      const summary = safeErrorSummary(exception);
+      this.logger.error(
+        `unhandled error ${summary.name} at ${summary.frames.slice(0, 6).join(' | ')}`,
+      );
       body = {
         statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
         code: 'INTERNAL_ERROR',

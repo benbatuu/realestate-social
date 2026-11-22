@@ -26,6 +26,19 @@ export const envSchema = z.object({
   OBJECT_STORAGE_ACCESS_KEY: nonEmpty,
   OBJECT_STORAGE_SECRET_KEY: nonEmpty,
   OBJECT_STORAGE_FORCE_PATH_STYLE: booleanString,
+  /** Host browsers use for signed URLs, when it differs from the API's internal endpoint. */
+  OBJECT_STORAGE_PUBLIC_ENDPOINT: z
+    .string()
+    .trim()
+    .optional()
+    .transform((v) => (v ? v : undefined))
+    .pipe(z.url().optional()),
+
+  IMPORT_MAX_FILE_MB: z.coerce.number().int().min(1).max(50).default(10),
+  IMPORT_MAX_ROWS: z.coerce.number().int().min(1).max(50_000).default(5000),
+  IMPORT_TTL_HOURS: z.coerce.number().int().min(1).max(168).default(24),
+  PHOTO_MAX_FILE_MB: z.coerce.number().int().min(1).max(50).default(20),
+  PHOTO_MAX_PER_PROPERTY: z.coerce.number().int().min(1).max(500).default(60),
 
   /**
    * Express `trust proxy`: which hops may set X-Forwarded-For. `loopback` fits the local setup
@@ -45,11 +58,58 @@ export const envSchema = z.object({
     .optional()
     .transform((v) => (v ? v : undefined)),
 
+  // Provider selection. `mock` is for development and tests; real providers need their key.
+  PROVIDER_I2V: z.enum(['mock', 'fal', 'openrouter']).default('mock'),
+  PROVIDER_LLM: z.enum(['mock', 'anthropic', 'openrouter']).default('mock'),
+  /** One key for OpenRouter video models and Claude (plan-08). */
+  OPENROUTER_API_KEY: z.string().trim().optional(),
+  I2V_MODEL_PRIMARY: z.string().trim().default('bytedance/seedance-2.5'),
+  /** Used once when the primary model fails a scene. Empty = no fallback. */
+  I2V_MODEL_FALLBACK: z.string().trim().default('google/veo-3.1-fast'),
+  I2V_RESOLUTION: z.enum(['480p', '720p', '1080p']).default('1080p'),
+  /**
+   * Master switch for calls that cost money. Only the exact value `true` turns it on; anything
+   * else (empty, typo) keeps it off. Off: AI scenes fall back to photo motion, no paid call is made.
+   */
+  AI_PAID_CALLS_ENABLED: booleanString,
+  AI_DAILY_BUDGET_USD: z.coerce.number().nonnegative().default(10),
+  AI_MONTHLY_BUDGET_USD: z.coerce.number().nonnegative().default(50),
+  PROVIDER_TTS: z.enum(['mock', 'elevenlabs']).default('mock'),
+  PROVIDER_MUSIC: z.enum(['mock', 'catalog']).default('mock'),
+  FAL_API_KEY: z.string().trim().optional(),
+  FAL_KLING_MODEL: z.string().trim().default('fal-ai/kling-video/v3/pro/image-to-video'),
+  ANTHROPIC_API_KEY: z.string().trim().optional(),
+  LLM_MODEL: z.string().trim().default('claude-sonnet-5-5'),
+  ELEVENLABS_API_KEY: z.string().trim().optional(),
+  ELEVENLABS_VOICE_ID: z.string().trim().optional(),
+  ELEVENLABS_MODEL: z.string().trim().default('eleven_multilingual_v2'),
+  MUSIC_CATALOG_PATH: z.string().trim().optional(),
+
   AUTH_SECRET: secret,
   ENCRYPTION_KEY: secret,
 });
 
 export type Env = z.infer<typeof envSchema>;
+
+/** Real providers must come with their credentials. Checked once, at startup. */
+export function assertProviderConfig(env: Env): void {
+  const issues: string[] = [];
+  if (env.PROVIDER_I2V === 'fal' && !env.FAL_API_KEY)
+    issues.push('FAL_API_KEY: required when PROVIDER_I2V=fal');
+  if (
+    (env.PROVIDER_I2V === 'openrouter' || env.PROVIDER_LLM === 'openrouter') &&
+    !env.OPENROUTER_API_KEY
+  )
+    issues.push('OPENROUTER_API_KEY: required when a provider is openrouter');
+  if (env.PROVIDER_LLM === 'anthropic' && !env.ANTHROPIC_API_KEY)
+    issues.push('ANTHROPIC_API_KEY: required when PROVIDER_LLM=anthropic');
+  if (env.PROVIDER_TTS === 'elevenlabs' && (!env.ELEVENLABS_API_KEY || !env.ELEVENLABS_VOICE_ID)) {
+    issues.push('ELEVENLABS_API_KEY, ELEVENLABS_VOICE_ID: required when PROVIDER_TTS=elevenlabs');
+  }
+  if (env.PROVIDER_MUSIC === 'catalog' && !env.MUSIC_CATALOG_PATH)
+    issues.push('MUSIC_CATALOG_PATH: required when PROVIDER_MUSIC=catalog');
+  if (issues.length > 0) throw new EnvValidationError(issues);
+}
 
 export class EnvValidationError extends Error {
   constructor(readonly issues: string[]) {

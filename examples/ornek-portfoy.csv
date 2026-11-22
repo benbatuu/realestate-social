@@ -1,0 +1,12 @@
+Portföy No;İlan Başlığı;İşlem Türü;Emlak Tipi;Fiyat;Oda Sayısı;Brüt m²;Net m²;Bulunduğu Kat;Bina Yaşı;Isıtma;Eşyalı;İl;İlçe;Mahalle;Açıklama
+OR-101;Moda'da deniz manzaralı 3+1 daire;Satılık;Daire;12.500.000 TL;3+1;145;125;3;12;Kombi;Hayır;İstanbul;Kadıköy;Caferağa;Moda sahiline beş dakika yürüme mesafesinde, geniş balkonlu, yeni tadilatlı daire. Salon ve iki yatak odası deniz görüyor.
+OR-102;Fenerbahçe'de bahçeli 2+1;Kiralık;Daire;45.000 TL;2+1;95;85;Bahçe Katı;20;Doğalgaz;Evet;İstanbul;Kadıköy;Fenerbahçe;Bahçe kullanımı dahil, sakin sokakta.
+OR-103;Göztepe 4+1 site içi dubleks;Satılık;Dubleks;18.750.000 TL;4+1;210;180;5;3;Yerden Isıtma;Hayır;İstanbul;Kadıköy;Göztepe;Site içinde kapalı otopark ve havuz.
+OR-104;Acıbadem 1+1 yatırımlık;Satılık;Daire;2.150.000 TL;1+1;55;45;2;;;;İstanbul;Kadıköy;;
+OR-105;Bebek'te stüdyo daire;Kiralık;Daire;38.000 TL;1+0;42;36;1;8;Kombi;Evet;İstanbul;Beşiktaş;Bebek;Boğaz'a yakın, eşyalı stüdyo.
+OR-106;Çankaya'da ofis katı;Kiralık;Ofis;65.000 TL;;320;300;4;15;Merkezi;Hayır;Ankara;Çankaya;Kızılay;Açık plan, dört oda, iki WC.
+OR-107;Konak'ta tarihi bina dairesi;Satılık;Daire;4.200.000 TL;2+1;110;95;1;68;Soba;Hayır;İzmir;Konak;Alsancak;Restore edilmiş taş bina, yüksek tavan.
+OR-108;Kepez'de yeni site 3+1;Satılık;Daire;3.450.000 TL;3+1;135;118;7;1;Doğalgaz;Hayır;Antalya;Kepez;Varsak;
+OR-109;Muratpaşa'da yazlık villa;Kiralık;Villa;120.000 TL;4+2;280;240;Zemin;5;Yerden Isıtma;Evet;Antalya;Muratpaşa;Lara;Havuzlu bahçe, deniz 300 metre.
+OR-110;Hatalı fiyat örneği;Satılık;Daire;4.50;3+1;120;;3;4;Kombi;Hayır;İstanbul;Üsküdar;Mimar Sinan;Kasıtlı hatalı satır: fiyat biçimi.
+OR-111;Hatalı işlem türü;Devren;Daire;1.000.000 TL;2+1;90;;2;;;;İstanbul;Şişli;Halaskargazi;Kasıtlı hatalı satır: işlem türü.

@@ -12,6 +12,8 @@ export async function registerViaUi(page: Page, name: string, email: string): Pr
   await page.getByLabel('Ad soyad').fill(name);
   await page.getByLabel('E-posta').fill(email);
   await page.getByLabel('Şifre').fill(PASSWORD);
+  // Consent to terms (required) before submitting.
+  await page.getByRole('checkbox').first().check();
   await page.getByRole('button', { name: 'Hesap oluştur' }).click();
 }
 

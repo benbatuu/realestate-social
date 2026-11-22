@@ -1,5 +1,6 @@
 import { TENANT_HEADER, type MembershipRole } from '@app/shared';
 import {
+  HttpStatus,
   applyDecorators,
   type CanActivate,
   type ExecutionContext,
@@ -16,6 +17,7 @@ import { PrismaService } from '../infra/prisma.service';
 import { hasAtLeast } from './roles';
 
 const MIN_ROLE = 'tenant:minRole';
+const VIEWER_WRITABLE = 'tenant:viewerWritable';
 const uuid = z.uuid();
 
 /**
@@ -43,10 +45,17 @@ export class TenantGuard implements CanActivate {
 
     const membership = await this.prisma.membership.findUnique({
       where: { tenantId_userId: { tenantId, userId: req.auth.userId } },
-      select: { role: true, tenant: { select: { status: true } } },
+      select: { role: true, status: true, tenant: { select: { status: true } } },
     });
     if (!membership || membership.tenant.status !== 'ACTIVE') {
       throw AppError.notFound('Workspace not found');
+    }
+    if (membership.status !== 'ACTIVE') {
+      throw new AppError(
+        HttpStatus.FORBIDDEN,
+        'MEMBERSHIP_DISABLED',
+        'Bu workspace için üyeliğiniz pasif.',
+      );
     }
 
     const minRole = this.reflector.getAllAndOverride<MembershipRole | undefined>(MIN_ROLE, [
@@ -56,10 +65,24 @@ export class TenantGuard implements CanActivate {
     if (minRole && !hasAtLeast(membership.role, minRole)) {
       throw AppError.forbidden('Insufficient role');
     }
+    // Viewers are read-only in the workspace, except for their own personal settings.
+    const viewerWritable = this.reflector.getAllAndOverride<boolean | undefined>(VIEWER_WRITABLE, [
+      ctx.getHandler(),
+      ctx.getClass(),
+    ]);
+    const isRead = req.method === 'GET' || req.method === 'HEAD';
+    if (membership.role === 'VIEWER' && !isRead && !viewerWritable) {
+      throw AppError.forbidden('Görüntüleyici rolü bu workspace’te değişiklik yapamaz.');
+    }
 
     req.tenant = { tenantId, role: membership.role };
     return true;
   }
+}
+
+/** Lets viewers use a write route for their own data (their notifications), not the workspace's. */
+export function ViewerWritable() {
+  return SetMetadata(VIEWER_WRITABLE, true);
 }
 
 /**

@@ -44,4 +44,20 @@ describe('parseEnv', () => {
       expect((err as Error).message).not.toContain(tooShort);
     }
   });
+
+  it('keeps paid AI calls off unless the switch is exactly true', () => {
+    expect(parseEnv(valid).AI_PAID_CALLS_ENABLED).toBe(false);
+    expect(parseEnv({ ...valid, AI_PAID_CALLS_ENABLED: 'false' }).AI_PAID_CALLS_ENABLED).toBe(
+      false,
+    );
+    expect(parseEnv({ ...valid, AI_PAID_CALLS_ENABLED: 'true' }).AI_PAID_CALLS_ENABLED).toBe(true);
+    expect(() => parseEnv({ ...valid, AI_PAID_CALLS_ENABLED: 'yes' })).toThrow(EnvValidationError);
+    expect(() => parseEnv({ ...valid, AI_PAID_CALLS_ENABLED: 'TRUE' })).toThrow(EnvValidationError);
+  });
+
+  it('reads the paid switch from a .env line with an inline comment as off', async () => {
+    const { parse } = await import('dotenv');
+    const fromFile = parse('AI_PAID_CALLS_ENABLED=false  # Ana şalter\n');
+    expect(parseEnv({ ...valid, ...fromFile }).AI_PAID_CALLS_ENABLED).toBe(false);
+  });
 });

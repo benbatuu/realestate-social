@@ -13,8 +13,13 @@
 `API_URL`. The cookie is first-party and no CORS is needed. Server components call the API
 directly and forward the incoming `Cookie` header.
 
-**CSRF.** SameSite=Lax cookies, JSON-only bodies, and a global `OriginGuard` that rejects
-state-changing requests whose `Origin` is not `APP_URL`.
+**CSRF.** SameSite=Lax cookies and a global `OriginGuard` that rejects state-changing requests
+whose `Origin` is not `APP_URL`. Multipart uploads (M2 imports and photos) are not JSON-only, so
+the origin check is the CSRF defence for them too; `test/imports.int.test.ts` covers a foreign
+origin on an upload route.
+
+**Body size.** The Next.js rewrite buffers request bodies: `proxyClientMaxBodySize` is set to 25 MB
+(default 10 MB silently truncated photo uploads). The API enforces the real per-file limits.
 
 **Default-deny.** A global `AuthGuard` requires a session on every route except those marked
 `@Public()` (health, register, login, invitation preview).
